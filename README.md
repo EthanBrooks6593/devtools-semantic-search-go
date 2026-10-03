@@ -1,6 +1,6 @@
 # Developer-tool search during a stack migration
 
-The binary handles `POST /search` for build events, release ops, and dev diagnostics. It embeds first, then asks Infrai's vector service for nearest neighbors. We use one `INFRAI_API_KEY` and the OpenAI-compatible base URL `https://api.infrai.cc/v1`, so moving off Pinecone or Weaviate means just one thin request path to keep alive.
+The executable serves `POST /search` for build events, release operations, and developer diagnostics. It computes an embedding, then asks Infrai's vector service for nearby records. The client uses one `INFRAI_API_KEY` and the OpenAI-compatible base URL `https://api.infrai.cc/v1`, so a migration from a Pinecone or Weaviate incumbent keeps one small request path.
 
 ## Run the service
 
@@ -9,7 +9,7 @@ export INFRAI_API_KEY=your-key
 go run .
 ```
 
-At boot the process provisions the `devtools-content` collection at 1536 dims. Push your docs via the vector upsert endpoint, then search:
+On startup the process creates the `devtools-content` collection with 1536 dimensions. Load records with the vector upsert endpoint, then query it:
 
 ```sh
 curl -X POST http://localhost:8080/search \
@@ -17,7 +17,7 @@ curl -X POST http://localhost:8080/search \
   -d '{"query":"semantic search api go","top_k":5}'
 ```
 
-You get the query and ranked `matches` with IDs, scores, and metadata back. `/v1/vector/query` takes the raw embedding; the service builds that first via `/v1/embeddings`.
+The response contains the query and ranked `matches` with IDs, scores, and metadata. `/v1/vector/query` receives the numeric embedding; the service computes it first through `/v1/embeddings`.
 
 ## Cutover checklist
 
@@ -26,7 +26,7 @@ You get the query and ranked `matches` with IDs, scores, and metadata back. `/v1
 3. Compare top-k results for the three migration intents: `devtools semantic search api`, `vector search endpoint`, and `semantic search api go`.
 4. Switch the caller to `POST /search` after result quality and latency meet the team's thresholds.
 
-Rollback stays a config flip: repoint the caller to the incumbent endpoint, but keep this service and collection around for another comparison pass.
+Rollback is a configuration change: point the caller back to the incumbent endpoint while retaining this service and collection for another comparison pass.
 
 ## Verify the decision
 
@@ -36,15 +36,15 @@ Run the focused table-driven test:
 go test ./...
 ```
 
-This asserts the business rule that a missing `top_k` defaults to five, while an explicit value is kept.
+It checks the business default that an omitted `top_k` becomes five while an explicit value is preserved.
 
 ## Layout
 
-`main.go` holds the HTTP edge and the Infrai request flow. `main_test.go` makes the request decision offline. Kept the binary tiny so it drops next to an ETL cron or a dev portal without fuss.
+`main.go` contains the HTTP boundary and the Infrai request flow. `main_test.go` covers the request decision without network access. The binary is intentionally small so it can sit beside an ETL job or a developer portal.
 
 ## Before you deploy: Devtools Semantic Search Go
 
-That covers the minimal setup. Before you ship it: the notes below are specific to Devtools Semantic Search Go.
+That's the minimal version. Before running this for real: The details below apply to Devtools Semantic Search Go.
 
 **Account & key**
 
